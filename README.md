@@ -2,6 +2,8 @@
 
 
 This script allows you to connet multiple accounts on the NodeGo platform using a list of proxies. It is designed for users who need to keep their accounts active by regularly sending "ping" requests to the server.
+# Register NODEGO AI
+## https://app.nodego.ai/r/NODE0F17FDACCF22
 
 ## Features
 
