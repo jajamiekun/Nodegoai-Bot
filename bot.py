@@ -9,9 +9,11 @@ from requests.exceptions import RequestException
 from colorama import Fore, Back, Style, init
 import pyfiglet
 
+# Initialize colorama for terminal colors
 init(autoreset=True)
 
 def display_banner():
+    """Display a colorful banner with the name KONTLIJO."""
     banner_text = pyfiglet.figlet_format("KONTLIJO", font="slant")
     print(Fore.CYAN + Style.BRIGHT + banner_text)
 
@@ -23,6 +25,7 @@ class NodeGoPinger:
         self.last_ping_timestamp = 0
 
     def create_proxy_session(self, proxy_url):
+        """Create a session with the provided proxy."""
         session = requests.Session()
         parsed_url = urlparse(proxy_url)
         if parsed_url.scheme == 'socks5':
@@ -43,9 +46,11 @@ class NodeGoPinger:
         return session
 
     def generate_node_id(self):
+        """Generate a random node ID."""
         return f'node_{random.randint(0, 999999)}'
 
     def get_user_info(self, proxy_url):
+        """Get user information using the provided proxy."""
         try:
             response = self.make_request('GET', '/user/me', proxy_url)
             metadata = response.json().get('metadata', {})
@@ -62,6 +67,7 @@ class NodeGoPinger:
             raise
 
     def make_request(self, method, endpoint, proxy_url, data=None):
+        """Make a request to the API with retry logic."""
         url = f"{self.api_base_url}{endpoint}"
         headers = {
             'Authorization': f"Bearer {self.bearer_token}",
@@ -70,19 +76,32 @@ class NodeGoPinger:
         }
 
         session = self.create_proxy_session(proxy_url)
-        try:
-            if method == 'GET':
-                response = session.get(url, headers=headers, timeout=30)
-            elif method == 'POST':
-                response = session.post(url, headers=headers, json=data, timeout=30)
+        retries = 3  # Retry count
+        attempt = 0
 
-            response.raise_for_status()
-            return response
-        except RequestException as e:
-            print(Fore.RED + f"Request failed: {str(e)}")
-            raise
+        while attempt < retries:
+            try:
+                if method == 'GET':
+                    response = session.get(url, headers=headers, timeout=30)
+                elif method == 'POST':
+                    response = session.post(url, headers=headers, json=data, timeout=30)
+
+                # Check if the request was successful
+                response.raise_for_status()
+
+                # Return response if no errors
+                return response
+            except RequestException as e:
+                attempt += 1
+                print(Fore.YELLOW + f"Attempt {attempt}/{retries} failed: {str(e)}")
+                if attempt == retries:
+                    print(Fore.RED + f"Request failed after {retries} attempts: {str(e)}")
+                    raise  # After retrying 3 times, raise the error
+                # Wait before retrying the request
+                time.sleep(5)  # Retry delay (5 seconds)
 
     def ping(self, proxy_url):
+        """Send a ping to the NodeGo API."""
         try:
             current_time = int(time.time() * 1000)
             if current_time - self.last_ping_timestamp < 3000:
@@ -108,6 +127,7 @@ class NodeGoPinger:
             raise
 
     def start_keep_alive_ping(self, proxy_url):
+        """Start a loop to keep sending keep-alive pings every 5 seconds."""
         while True:
             try:
                 print(Fore.BLUE + f"Sending keep-alive ping to proxy: {proxy_url}")
@@ -115,6 +135,8 @@ class NodeGoPinger:
                 print(Fore.GREEN + f"Keep-alive ping successful! Node ID: {ping_response['nodeId']}")
             except RequestException as e:
                 print(Fore.RED + f"Keep-alive ping failed: {str(e)}")
+                # Wait and retry in case of failure
+                time.sleep(5)
             time.sleep(5)
 
 class MultiAccountPinger:
@@ -123,6 +145,7 @@ class MultiAccountPinger:
         self.is_running = True
 
     def load_accounts(self):
+        """Load accounts and proxies from data files."""
         accounts = []
         try:
             with open('token.txt', 'r') as f:
@@ -145,6 +168,7 @@ class MultiAccountPinger:
         return accounts
 
     def process_single_account(self, account):
+        """Process a single account's information and pings."""
         pinger = NodeGoPinger(account['token'], account['proxyUrls'])
         
         try:
@@ -180,6 +204,7 @@ class MultiAccountPinger:
             print(Fore.RED + f"Error processing account: {str(e)}")
 
     def run_pinger(self):
+        """Run the pinger process for all accounts."""
         display_banner()
         while self.is_running:
             print(Fore.WHITE + f"\n⏰ Ping Cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
